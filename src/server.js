@@ -47,6 +47,13 @@ db.once('open', () => {
 //Initialize Express app
 const app = express();
 
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'speedscore-backend'
+  });
+});
+
 //Install rate limiter middleware
 app.use(rateLimiter);
 
