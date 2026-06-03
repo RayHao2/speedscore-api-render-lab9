@@ -99,6 +99,7 @@ Pain points, gotchas, and failures:
 - The backend could not start at first because the GitHub OAuth Passport strategy requires `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` at startup, even though GitHub OAuth was not needed for the health-check deployment.
 - The updated backend requires a real MongoDB connection string because the server connects to MongoDB and creates a session store during startup.
 - Render initially showed Docker settings, but the updated repository does not include a Dockerfile. The correct setup was a Node web service from the repository root.
+- Render initially selected Node 24, which caused a MongoDB TLS connection failure during deployment. Pinning the runtime to Node 20 fixed the production startup issue.
 - The Render Free service may spin down after inactivity, which can make the first verification request slower.
 
 Responses and lessons learned:
@@ -107,6 +108,7 @@ Responses and lessons learned:
 - To get the server running without implementing real GitHub OAuth for this lab, I provided placeholder `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` values in local and Render environment variables.
 - To support the real backend, I used MongoDB Atlas instead of a placeholder health-only API. This made the deployment match the updated starter repo more closely.
 - To avoid unnecessary deployment complexity, I used Render's Node runtime rather than adding a Dockerfile.
+- To fix the Render runtime issue, I pinned the Node version in `package.json` and configured Render to use Node 20 instead of Node 24.
 - I learned that backend deployment depends heavily on environment configuration. The code can be correct locally, but missing secrets, dependency versions, database network access, or platform runtime settings can still prevent deployment.
 
 Advice to my future self:
@@ -206,6 +208,7 @@ Main gotchas:
 
 - Do not commit `.env`; use Render environment variables and GitHub Actions secrets.
 - Do not set `PORT` on Render; Render provides it automatically.
+- Pin Node to version 20 for this backend; newer Render defaults such as Node 24 can introduce runtime or TLS compatibility problems.
 - The service must use the Node runtime unless a Dockerfile has been intentionally added.
 - The GitHub OAuth variables are needed at startup because Passport registers the GitHub strategy immediately.
 - The MongoDB Atlas connection string should include a database name before the query string.
