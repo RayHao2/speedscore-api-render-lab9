@@ -1,0 +1,40 @@
+name: Backend Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Trigger Render deployment
+        run: curl --fail --request POST "$RENDER_DEPLOY_HOOK_URL"
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
+      - name: Verify Render health endpoint
+        run: |
+          for i in {1..30}; do
+            if curl --fail "$RENDER_SERVICE_URL/health"; then
+              exit 0
+            fi
+            echo "Render service not ready yet; retrying..."
+            sleep 15
+          done
+          echo "Render health check did not pass in time."
+          exit 1
+        env:
+          RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }}
