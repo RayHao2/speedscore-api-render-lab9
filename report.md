@@ -48,6 +48,181 @@ Recommendation: use a managed platform deployment, specifically a Render Free we
 
 ## Part C
 
+Selected deployment option: managed platform deployment using Render Free web service.
+
+Deployment pipeline evidence:
+
+- Deployment repository used by Render: https://github.com/RayHao2/speedscore-api-render-lab9
+- GitHub Actions workflow run: https://github.com/RayHao2/speedscore-api-render-lab9/actions/runs/26859893291
+
+Verification evidence:
+
+- Public API health check URL: https://lab9-vc5q.onrender.com/health
+- Health check output:
+
+```json
+{
+  "status": "ok",
+  "service": "speedscore-backend"
+}
+```
+
+Scaffold changes made:
+
+- Added `mongodb@6.3.0` as an explicit production dependency because `src/server.js` directly imports `MongoClient` from `mongodb`. Pinning version `6.3.0` keeps it compatible with `connect-mongo`.
+- Kept the case-sensitive middleware filename aligned as `src/middleware/rateLimiter.js` because Linux hosts such as Render are case-sensitive and the server imports `./middleware/rateLimiter.js`.
+- Used the existing `/health` endpoint in `src/server.js` as the deployment verification route.
+- Added a GitHub Actions deployment workflow that installs dependencies, triggers the Render deploy hook, and verifies the deployed `/health` endpoint.
+- Configured a MongoDB Atlas free cluster and allowed network access from Render so the deployed backend can connect to MongoDB.
+- Configured Render environment variables for the database connection, session secret, JWT secret, token durations, production mode, deployment URL, and placeholder GitHub OAuth credentials.
+
+Deployment note:
+
+Render was configured as a Node web service from the repository root with `npm install` as the build command, `npm start` as the start command, and `/health` as the health check path. The service runs on Render Free, so it may spin down after inactivity, but it satisfies the lab requirement for a deployed backend with public verification evidence.
+
 ## Part D
 
+Major steps attempted:
+
+1. I reviewed the updated backend starter repository and confirmed that it now contains the real SpeedScore Express/MongoDB backend instead of only deployment scaffolding.
+2. I selected Render Free as the managed platform deployment target and MongoDB Atlas free tier as the database service.
+3. I added `mongodb@6.3.0` as an explicit dependency after noticing that `src/server.js` directly imports `MongoClient`.
+4. I created a MongoDB Atlas free cluster, database user, and network access rule so the deployed backend could connect to MongoDB.
+5. I created a local `.env` file and tested the backend locally with `npm start`.
+6. I configured a Render Free Node web service from the repository root using `npm install`, `npm start`, and `/health`.
+7. I added a GitHub Actions workflow that triggers the Render deploy hook and verifies the deployed `/health` endpoint.
+8. I collected the successful workflow run link and the public Render health check output as deployment evidence.
+
+Pain points, gotchas, and failures:
+
+- Installing `mongodb` without a version first installed `mongodb@7.2.0`, which conflicted with `connect-mongo` because `connect-mongo@5.1.0` requires a MongoDB driver version below 7.
+- The backend could not start at first because the GitHub OAuth Passport strategy requires `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` at startup, even though GitHub OAuth was not needed for the health-check deployment.
+- The updated backend requires a real MongoDB connection string because the server connects to MongoDB and creates a session store during startup.
+- Render initially showed Docker settings, but the updated repository does not include a Dockerfile. The correct setup was a Node web service from the repository root.
+- The Render Free service may spin down after inactivity, which can make the first verification request slower.
+
+Responses and lessons learned:
+
+- To fix the MongoDB dependency conflict, I pinned the explicit dependency to `mongodb@6.3.0`, which matches the version already used by Mongoose and stays compatible with `connect-mongo`.
+- To get the server running without implementing real GitHub OAuth for this lab, I provided placeholder `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` values in local and Render environment variables.
+- To support the real backend, I used MongoDB Atlas instead of a placeholder health-only API. This made the deployment match the updated starter repo more closely.
+- To avoid unnecessary deployment complexity, I used Render's Node runtime rather than adding a Dockerfile.
+- I learned that backend deployment depends heavily on environment configuration. The code can be correct locally, but missing secrets, dependency versions, database network access, or platform runtime settings can still prevent deployment.
+
+Advice to my future self:
+
+Before deploying this backend again, I would first list every environment variable used during startup, confirm dependency compatibility, and verify database access before creating the hosting service. I would also check whether the platform is using the correct runtime, because choosing Docker when the repo is set up for Node can send the deployment in the wrong direction.
+
 ## Part E
+
+Backend deployment guide for future students:
+
+Prerequisites:
+
+- A GitHub repository containing the SpeedScore backend code.
+- A Render account for the free web service.
+- A MongoDB Atlas account with access to create a free cluster.
+- Node.js installed locally.
+- A `/health` endpoint in the backend that returns HTTP `200`.
+- GitHub Actions secrets access for the repository used by Render.
+
+Key setup and deployment steps:
+
+1. Confirm the backend starts from the repository root with:
+
+```powershell
+npm install
+npm start
+```
+
+2. Make sure `mongodb` is listed as an explicit dependency and use a version compatible with `connect-mongo`. For this repo, `mongodb@6.3.0` worked.
+
+3. Create a MongoDB Atlas free cluster. Add a database user and allow network access from anywhere with `0.0.0.0/0`, since Render Free does not provide a stable outbound IP for simple allowlisting.
+
+4. Create a local `.env` file for testing:
+
+```env
+MONGODB_URI=<your Atlas connection string>
+SESSION_SECRET=<long random string>
+JWT_SECRET=<long random string>
+ACCESS_TOKEN_DURATION=1h
+REFRESH_TOKEN_DURATION=7d
+PORT=3001
+NODE_ENV=development
+API_DEPLOYMENT_URL=http://localhost:3001
+GITHUB_CLIENT_ID=lab9-placeholder-client-id
+GITHUB_CLIENT_SECRET=lab9-placeholder-client-secret
+```
+
+5. Test locally:
+
+```powershell
+npm start
+curl.exe http://localhost:3001/health
+```
+
+6. Create a Render Web Service using the repository root:
+
+```text
+Runtime: Node
+Root Directory: leave blank
+Build Command: npm install
+Start Command: npm start
+Instance Type: Free
+Health Check Path: /health
+Auto-Deploy: Off
+```
+
+7. Add Render environment variables:
+
+```text
+MONGODB_URI
+SESSION_SECRET
+JWT_SECRET
+ACCESS_TOKEN_DURATION=1h
+REFRESH_TOKEN_DURATION=7d
+NODE_ENV=production
+API_DEPLOYMENT_URL=https://<your-render-service>.onrender.com
+GITHUB_CLIENT_ID=lab9-placeholder-client-id
+GITHUB_CLIENT_SECRET=lab9-placeholder-client-secret
+```
+
+8. Deploy the Render service and verify:
+
+```powershell
+curl.exe https://<your-render-service>.onrender.com/health
+```
+
+9. Add GitHub Actions secrets:
+
+```text
+RENDER_DEPLOY_HOOK_URL
+RENDER_SERVICE_URL
+```
+
+10. Run the GitHub Actions deployment workflow and save the successful workflow run link.
+
+Main gotchas:
+
+- Do not commit `.env`; use Render environment variables and GitHub Actions secrets.
+- Do not set `PORT` on Render; Render provides it automatically.
+- The service must use the Node runtime unless a Dockerfile has been intentionally added.
+- The GitHub OAuth variables are needed at startup because Passport registers the GitHub strategy immediately.
+- The MongoDB Atlas connection string should include a database name before the query string.
+- Render Free services can spin down after inactivity, so a slow first request does not necessarily mean deployment failed.
+
+Success verification checklist:
+
+- Local `/health` returns HTTP `200`.
+- Render logs show the server started successfully.
+- Render `/health` returns:
+
+```json
+{
+  "status": "ok",
+  "service": "speedscore-backend"
+}
+```
+
+- GitHub Actions workflow completes successfully.
+- The lab report includes the workflow run link, public health check URL, health check output, and scaffold-change notes.
